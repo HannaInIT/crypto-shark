@@ -4,11 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Crypto Shark</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/css/style.css" />
   </head>
   <body>
-    <header></header>
-    <main></main>
+    <input class="nav-state" type="radio" name="nav" id="nav-home" checked />
+    <input class="nav-state" type="radio" name="nav" id="nav-favorites" />
+
+    <header class="header">
+      <div class="wrapper">
+        <div class="header-nav">
+          <div class="logo-wrapper">
+            <label for="nav-home" class="logo" aria-label="Crypto Shark home ">
+              <img src="images/logo.svg" alt="Crypto Shark logo" />
+            </label>
+            <p class="logo-text">Crypto<b>Shark</b></p>
+          </div>
+          <form role="search" class="search-box" id="search-form">
+            <label for="coin-search" class="visually-hidden"
+              >Search coins</label
+            >
+            <svg
+              class="search-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+            >
+              <path d="M0 0h24v24H0z" fill="none" />
+              <path
+                fill="currentColor"
+                d="M9.539 15.23q-2.398 0-4.065-1.666Q3.808 11.899 3.808 9.5t1.666-4.065T9.539 3.77t4.064 1.666T15.269 9.5q0 1.042-.369 2.017t-.97 1.668l5.909 5.907q.14.14.15.345q.009.203-.15.363q-.16.16-.354.16t-.354-.16l-5.908-5.908q-.75.639-1.725.989t-1.96.35m0-1q1.99 0 3.361-1.37q1.37-1.37 1.37-3.361T12.9 6.14T9.54 4.77q-1.991 0-3.361 1.37T4.808 9.5t1.37 3.36t3.36 1.37"
+              />
+            </svg>
+
+            <input
+              type="search"
+              id="coin-search"
+              name="search"
+              placeholder="Search coin, e.g. BTC or Bitcoin"
+              autocomplete="off"
+            />
+          </form>
+
+          <nav id="nav-links">
+            <label for="nav-home">Home</label>
+            <label for="nav-favorites">Favorites</label>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-spacing-top">
+      <!-- HOME  -->
+      <section id="page-home" class="page wrapper dashboard">
+        <h1 class="dashboard-title">Overview</h1>
+        <p id="loader" class="text-loader">Loading coins...</p>
+        <p id="error-message" class="error-message" hidden>
+          Failed to load data. Please try again.
+        </p>
+        <table id="coin-table" hidden>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Symbol</th>
+              <th>Price</th>
+              <th>24h Change</th>
+              <th>24h High</th>
+              <th>24h Low</th>
+              <th>24h Volume</th>
+            </tr>
+          </thead>
+          <tbody id="coin-table-body">
+            <!-- inserted rows by renderTable() -->
+          </tbody>
+        </table>
+      </section>
+    </main>
     <script src="/js/script.js" defer></script>
   </body>
 </html>
