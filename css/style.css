@@ -349,7 +349,6 @@ nav {
 
 #coin-table {
   width: 100%;
-  table-layout: fixed;
   border-collapse: collapse;
   font-size: 16px;
   table-layout: auto;
@@ -373,12 +372,23 @@ nav {
   background: var(--light-purple);
 }
 
-.coin-symbol {
-  font-weight: 600;
-}
-
 .price {
   font-variant-numeric: tabular-nums;
+}
+
+.change-inner {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.change-icon {
+  font-size: 0.7rem;
+}
+
+.change-value {
+  font-size: 16px;
 }
 
 .change.positive {
@@ -407,26 +417,24 @@ nav {
   color: var(--accent-purple);
 }
 
-.coin-name {
-  text-align: left;
-}
-
 .coin-name-inner {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
-.coin-name img {
+.coin-name-inner img {
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.coin-name .name {
+.coin-name-inner .name {
   font-weight: 500;
 }
 
-.coin-name .symbol {
+.coin-name-inner .symbol {
   color: var(--text-grey);
   font-size: 16px;
+  font-weight: 500;
 }

@@ -67,7 +67,12 @@ function renderRow(coin, index) {
     </div>
   </td>
   <td class="price">$${parseFloat(lastPrice).toLocaleString()}</td>
-  <td class="change ${isPositive ? "positive" : "negative"}">${isPositive ? "▲" : "▼"} ${Math.abs(change)}%</td>
+  <td class="change ${isPositive ? "positive" : "negative"}">
+    <span class="change-inner">
+      <span class="change-icon"> ${isPositive ? "▲" : "▼"}</span>
+      <span class="change-value">${Math.abs(change)}%</span>
+    </span
+  </td>
   <td>$${parseFloat(highPrice).toLocaleString()}</td>
   <td>$${parseFloat(lowPrice).toLocaleString()}</td>
   <td>$${parseFloat(quoteVolume).toLocaleString()}</td>
