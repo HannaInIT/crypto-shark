@@ -1,4 +1,12 @@
 let coinNames = {};
+let allCoins = [];
+const debouncedFilterCoinsBySearchQuery = debounce(
+  filterCoinsBySearchQuery,
+  300,
+);
+
+const searchInput = document.getElementById("coinSearch");
+const searchForm = document.getElementById("searchForm");
 
 // get the coin icon
 function getBaseAsset(symbol) {
@@ -70,6 +78,15 @@ function renderRow(coin, index) {
 // render table
 function renderTable(coins) {
   const body = document.getElementById("coin-table-body");
+  if (coins.length === 0) {
+    body.innerHTML = `
+  <tr class="no-results-row">
+    <td colspan="7">No coins found.</td>
+  </tr>
+    `;
+    return;
+  }
+
   body.innerHTML = coins.map(renderRow).join("");
 }
 
@@ -84,8 +101,9 @@ async function loadCoins() {
     if (!response.ok) throw new Error(`Request failed:  ${response.status}`);
 
     const data = await response.json();
-    const usdtPairs = data.filter((coin) => coin.symbol.endsWith("USDT"));
-    renderTable(usdtPairs);
+
+    allCoins = data.filter((coin) => coin.symbol.endsWith("USDT"));
+    renderTable(allCoins);
     table.hidden = false;
   } catch (err) {
     errorMessage.hidden = false;
@@ -93,6 +111,52 @@ async function loadCoins() {
   } finally {
     loader.hidden = true;
   }
+}
+
+// search coins
+function filterCoinsBySearchQuery(query) {
+  const trimmed = query.trim().toUpperCase();
+
+  if (!trimmed) {
+    renderTable(allCoins);
+    return;
+  }
+
+  const filtered = allCoins.filter((coin) => {
+    const base = getBaseAsset(coin.symbol);
+    const name = (coinNames[base] || "").toUpperCase();
+    return coin.symbol.includes(trimmed) || name.includes(trimmed);
+  });
+
+  renderTable(filtered);
+}
+
+searchInput.addEventListener("input", (e) => {
+  debouncedFilterCoinsBySearchQuery(e.target.value);
+});
+
+searchForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  filterCoinsBySearchQuery(searchInput.value);
+});
+
+// clear input button
+const clearBtn = document.querySelector(".clear-btn");
+if (clearBtn) {
+  clearBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    filterCoinsBySearchQuery("");
+    searchInput.focus();
+  });
+}
+
+//debounce
+function debounce(fn, delay) {
+  let timeoutId;
+  return function (...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+  };
 }
 
 async function init() {
