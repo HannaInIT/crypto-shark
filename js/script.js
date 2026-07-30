@@ -1,5 +1,7 @@
 let coinNames = {};
 let allCoins = [];
+let favorites = loadFavorites();
+
 const debouncedFilterCoinsBySearchQuery = debounce(
   filterCoinsBySearchQuery,
   300,
@@ -41,6 +43,7 @@ function renderRow(coin, index) {
     lowPrice,
   } = coin;
 
+  const isFavorite = favorites.has(symbol);
   const base = getBaseAsset(symbol);
   const name = coinNames[base] || base;
   const iconUrl = `https://essamamdani.github.io/open-crypto-icons/icons/colored/${base.toLowerCase()}.svg`;
@@ -51,10 +54,10 @@ function renderRow(coin, index) {
   return `
   <tr data-symbol="${symbol}">
   <td>
-  <button class="favorite-btn" data-symbol="${symbol}" aria-label="Add ${symbol} to favorites">
+  <button class="favorite-btn${isFavorite ? " active" : ""}" data-symbol="${symbol}" aria-label="${isFavorite ? "Remove" : "Add"} ${symbol} ${isFavorite ? "from" : "to"} favorites" aria-pressed="${isFavorite}">
     <svg class="favorite-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
 	    <path d="M0 0h24v24H0z" fill="none" />
-	    <path fill="currentColor" d="m8.85 16.825l3.15-1.9l3.15 1.925l-.825-3.6l2.775-2.4l-3.65-.325l-1.45-3.4l-1.45 3.375l-3.65.325l2.775 2.425zm3.15-.723l-3.63 2.192q-.16.079-.297.064q-.136-.016-.265-.094q-.13-.08-.196-.226t-.012-.319l.966-4.11l-3.195-2.77q-.135-.11-.178-.263t.019-.293t.165-.23q.104-.087.28-.118l4.216-.368l1.644-3.892q.068-.165.196-.238T12 5.364t.288.073t.195.238l1.644 3.892l4.215.368q.177.03.281.119q.104.088.166.229q.061.14.018.293t-.178.263l-3.195 2.77l.966 4.11q.056.171-.011.318t-.197.226q-.128.08-.265.095q-.136.015-.296-.064zm0-3.852" />
+	    <path fill="currentColor" d="${isFavorite ? starFilledPath : starOutlinePath}" />
     </svg>
   </button>
   </td>
@@ -71,7 +74,7 @@ function renderRow(coin, index) {
     <span class="change-inner">
       <span class="change-icon"> ${isPositive ? "▲" : "▼"}</span>
       <span class="change-value">${Math.abs(change)}%</span>
-    </span
+    </span>
   </td>
   <td>$${parseFloat(highPrice).toLocaleString()}</td>
   <td>$${parseFloat(lowPrice).toLocaleString()}</td>
@@ -154,6 +157,55 @@ if (clearBtn) {
     searchInput.focus();
   });
 }
+
+// add to favorites
+const favoritesCoinsKey = "favoritesCoins";
+const starOutlinePath =
+  "m8.85 16.825l3.15-1.9l3.15 1.925l-.825-3.6l2.775-2.4l-3.65-.325l-1.45-3.4l-1.45 3.375l-3.65.325l2.775 2.425zm3.15-.723l-3.63 2.192q-.16.079-.297.064q-.136-.016-.265-.094q-.13-.08-.196-.226t-.012-.319l.966-4.11l-3.195-2.77q-.135-.11-.178-.263t.019-.293t.165-.23q.104-.087.28-.118l4.216-.368l1.644-3.892q.068-.165.196-.238T12 5.364t.288.073t.195.238l1.644 3.892l4.215.368q.177.03.281.119q.104.088.166.229q.061.14.018.293t-.178.263l-3.195 2.77l.966 4.11q.056.171-.011.318t-.197.226q-.128.08-.265.095q-.136.015-.296-.064zm0-3.852";
+const starFilledPath =
+  "m12 16.102l-3.63 2.192q-.16.079-.297.064q-.136-.016-.265-.094q-.13-.08-.196-.226t-.012-.319l.966-4.11l-3.195-2.77q-.135-.11-.178-.263t.019-.293t.165-.23q.104-.087.28-.118l4.216-.368l1.644-3.892q.068-.165.196-.238T12 5.364t.288.073t.195.238l1.644 3.892l4.215.368q.177.03.281.119q.104.088.166.229q.061.14.018.293t-.178.263l-3.195 2.77l.966 4.11q.056.171-.011.318t-.197.226q-.128.08-.265.095q-.136.015-.296-.064z";
+
+function loadFavorites() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(favoritesCoinsKey));
+    return new Set(Array.isArray(stored) ? stored : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveFavorites() {
+  localStorage.setItem(favoritesCoinsKey, JSON.stringify([...favorites]));
+}
+
+
+function toggleFavorite(symbol) {
+  if (favorites.has(symbol)) {
+    favorites.delete(symbol);
+  } else {
+    favorites.add(symbol);
+  }
+  saveFavorites();
+}
+
+document.getElementById("coin-table-body").addEventListener("click", (e) => {
+  const btn = e.target.closest(".favorite-btn");
+  if (!btn) return;
+
+  const symbol = btn.dataset.symbol;
+  toggleFavorite(symbol);
+
+  const isFavorite = favorites.has(symbol);
+  btn.classList.toggle("active", isFavorite);
+  btn.setAttribute("aria-pressed", isFavorite);
+  btn.setAttribute(
+    "aria-label",
+    `${isFavorite ? "Remove" : "Add"} ${symbol} ${isFavorite ? "from" : "to"} favorites`,
+  );
+
+  const starPath = btn.querySelector("svg path:last-child");
+  starPath.setAttribute("d", isFavorite ? starFilledPath : starOutlinePath);
+});
 
 //debounce
 function debounce(fn, delay) {

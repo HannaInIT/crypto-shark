@@ -417,6 +417,10 @@ nav {
   color: var(--accent-purple);
 }
 
+.favorite-btn.active {
+  color: var(--accent-purple);
+}
+
 .coin-name-inner {
   display: flex;
   align-items: center;
