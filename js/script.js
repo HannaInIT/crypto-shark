@@ -1,6 +1,7 @@
 let coinNames = {};
 let allCoins = [];
 let favorites = loadFavorites();
+let isShowingAllCoins = true;
 
 const debouncedFilterCoinsBySearchQuery = debounce(
   filterCoinsBySearchQuery,
@@ -124,9 +125,26 @@ async function loadCoins() {
 // search coins
 function filterCoinsBySearchQuery(query) {
   const trimmed = query.trim().toUpperCase();
+  const searchHint = document.getElementById("searchHint");
+
+  if (trimmed.length > 0 && trimmed.length < 3) {
+    searchHint.hidden = false;
+
+    if (!isShowingAllCoins) {
+      renderTable(allCoins);
+      isShowingAllCoins = true;
+    }
+    return;
+  }
+
+  searchHint.hidden = true;
 
   if (!trimmed) {
-    renderTable(allCoins);
+    if (!isShowingAllCoins) {
+      renderTable(allCoins);
+      isShowingAllCoins = true;
+    }
+
     return;
   }
 
@@ -137,6 +155,7 @@ function filterCoinsBySearchQuery(query) {
   });
 
   renderTable(filtered);
+  isShowingAllCoins = false;
 }
 
 searchInput.addEventListener("input", (e) => {
@@ -177,7 +196,6 @@ function loadFavorites() {
 function saveFavorites() {
   localStorage.setItem(favoritesCoinsKey, JSON.stringify([...favorites]));
 }
-
 
 function toggleFavorite(symbol) {
   if (favorites.has(symbol)) {

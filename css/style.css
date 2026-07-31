@@ -226,6 +226,7 @@ header .visually-hidden {
   display: flex;
   align-items: center;
   justify-self: center;
+  position: relative;
 }
 
 .search-box {
@@ -281,6 +282,21 @@ input[type="search"]::-webkit-search-decoration {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.search-hint {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  font-size: 16px;
+  color: var(--text-grey);
+  margin-top: 7px;
+  white-space: nowrap;
+  padding: 10px 17px;
+  border-radius: 5px;
+  background-color: var(--white);
+  box-shadow: 2px 4px 20px rgba(70, 31, 91, 0.07);
+  z-index: 12;
 }
 
 .clear-btn:focus {
