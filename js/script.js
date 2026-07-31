@@ -2,14 +2,22 @@ let coinNames = {};
 let allCoins = [];
 let favorites = loadFavorites();
 let isShowingAllCoins = true;
+const coinTableBody = document.getElementById("coin-table-body");
+const searchHint = document.getElementById("searchHint");
+const favoritesTableBody = document.getElementById("favorites-coin-table-body");
+const favoritesNavLink = document.getElementById("nav-favorites");
+const favoritesTable = document.getElementById("favorites-table");
+const noFavoritesMessage = document.getElementById("no-favorites-message");
+const loader = document.getElementById("loader");
+const table = document.getElementById("coin-table");
+const errorMessage = document.getElementById("error-message");
+const searchInput = document.getElementById("coinSearch");
+const searchForm = document.getElementById("searchForm");
 
 const debouncedFilterCoinsBySearchQuery = debounce(
   filterCoinsBySearchQuery,
   300,
 );
-
-const searchInput = document.getElementById("coinSearch");
-const searchForm = document.getElementById("searchForm");
 
 // get the coin icon
 function getBaseAsset(symbol) {
@@ -86,9 +94,8 @@ function renderRow(coin, index) {
 
 // render table
 function renderTable(coins) {
-  const body = document.getElementById("coin-table-body");
   if (coins.length === 0) {
-    body.innerHTML = `
+    coinTableBody.innerHTML = `
   <tr class="no-results-row">
     <td colspan="7">No coins found.</td>
   </tr>
@@ -96,15 +103,11 @@ function renderTable(coins) {
     return;
   }
 
-  body.innerHTML = coins.map(renderRow).join("");
+  coinTableBody.innerHTML = coins.map(renderRow).join("");
 }
 
 // load coins
 async function loadCoins() {
-  const loader = document.getElementById("loader");
-  const table = document.getElementById("coin-table");
-  const errorMessage = document.getElementById("error-message");
-
   try {
     const response = await fetch("https://api.binance.com/api/v3/ticker/24hr");
     if (!response.ok) throw new Error(`Request failed:  ${response.status}`);
@@ -125,8 +128,6 @@ async function loadCoins() {
 // search coins
 function filterCoinsBySearchQuery(query) {
   const trimmed = query.trim().toUpperCase();
-  const searchHint = document.getElementById("searchHint");
-
   if (trimmed.length > 0 && trimmed.length < 3) {
     searchHint.hidden = false;
 
@@ -206,24 +207,64 @@ function toggleFavorite(symbol) {
   saveFavorites();
 }
 
-document.getElementById("coin-table-body").addEventListener("click", (e) => {
+coinTableBody.addEventListener("click", (e) => {
   const btn = e.target.closest(".favorite-btn");
   if (!btn) return;
 
   const symbol = btn.dataset.symbol;
   toggleFavorite(symbol);
-
-  const isFavorite = favorites.has(symbol);
-  btn.classList.toggle("active", isFavorite);
-  btn.setAttribute("aria-pressed", isFavorite);
-  btn.setAttribute(
-    "aria-label",
-    `${isFavorite ? "Remove" : "Add"} ${symbol} ${isFavorite ? "from" : "to"} favorites`,
-  );
-
-  const starPath = btn.querySelector("svg path:last-child");
-  starPath.setAttribute("d", isFavorite ? starFilledPath : starOutlinePath);
+  updateFavoriteButtonUI(symbol);
 });
+
+favoritesTableBody.addEventListener("click", (e) => {
+  const btn = e.target.closest(".favorite-btn");
+  if (!btn) return;
+
+  const symbol = btn.dataset.symbol;
+  toggleFavorite(symbol);
+  updateFavoriteButtonUI(symbol);
+  renderFavoritesTable();
+});
+
+// favorites page
+function renderFavoritesTable() {
+  const favoriteCoins = allCoins.filter((coin) => favorites.has(coin.symbol));
+
+  if (favoriteCoins.length === 0) {
+    favoritesTable.hidden = true;
+
+    noFavoritesMessage.hidden = false;
+    return;
+  }
+
+  favoritesTable.hidden = false;
+  noFavoritesMessage.hidden = true;
+  favoritesTableBody.innerHTML = favoriteCoins.map(renderRow).join("");
+}
+
+favoritesNavLink.addEventListener("change", () => {
+  if (favoritesNavLink.checked) {
+    renderFavoritesTable();
+  }
+});
+
+// update favorites
+function updateFavoriteButtonUI(symbol) {
+  const isFavorite = favorites.has(symbol);
+
+  [...document.querySelectorAll(`.favorite-btn[data-symbol="${symbol}"]`)].map(
+    (btn) => {
+      btn.classList.toggle("active", isFavorite);
+      btn.setAttribute("aria-pressed", isFavorite);
+      btn.setAttribute(
+        "aria-label",
+        `${isFavorite ? "Remove" : "Add"} ${symbol} ${isFavorite ? "from" : "to"} favorites`,
+      );
+      const starPath = btn.querySelector("svg path:last-child");
+      starPath.setAttribute("d", isFavorite ? starFilledPath : starOutlinePath);
+    },
+  );
+}
 
 //debounce
 function debounce(fn, delay) {

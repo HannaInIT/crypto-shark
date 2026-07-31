@@ -338,12 +338,12 @@ nav {
 }
 
 #nav-home:checked ~ main #page-home,
-#nav-catalog:checked ~ main #page-favorites {
+#nav-favorites:checked ~ main #page-favorites {
   display: block;
 }
 
 #nav-home:checked ~ header label[for="nav-home"],
-#nav-catalog:checked ~ header label[for="nav-favorites"] {
+#nav-favorites:checked ~ header label[for="nav-favorites"] {
   color: var(--text-grey);
 }
 
@@ -356,21 +356,22 @@ nav {
   width: 100%;
 }
 
-.dashboard-title {
+.dashboard-title,
+.favorites-title {
   text-align: left;
   font-size: 20px;
   font-weight: 700;
   margin-bottom: 36px;
 }
 
-#coin-table {
+.data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 16px;
   table-layout: auto;
 }
 
-#coin-table thead th {
+.data-table thead th {
   text-align: left;
   font-weight: 500;
   font-size: 16px;
@@ -379,12 +380,12 @@ nav {
   border-bottom: 1px solid var(--light-grey);
 }
 
-#coin-table tbody td {
+.data-table tbody td {
   padding: 16px;
   border-bottom: 1px solid var(--light-grey);
 }
 
-#coin-table tbody tr:hover {
+.data-table tbody tr:hover {
   background: var(--light-purple);
 }
 

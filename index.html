@@ -96,7 +96,7 @@
         <p id="error-message" class="error-message" hidden>
           Failed to load data. Please try again.
         </p>
-        <table id="coin-table" hidden>
+        <table id="coin-table" class="data-table" hidden>
           <thead>
             <tr>
               <th></th>
@@ -110,6 +110,31 @@
           </thead>
           <tbody id="coin-table-body">
             <!-- inserted rows by renderTable() -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- FAVORITES  -->
+      <section id="page-favorites" class="page wrapper favorites">
+        <h1 class="favorites-title">Favorites</h1>
+        <p id="no-favorites-message" class="text-loader" hidden>
+          There are no favorite coins yet.
+        </p>
+
+        <table id="favorites-table" class="data-table" hidden>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Symbol</th>
+              <th>Price</th>
+              <th>24h Change</th>
+              <th>24h High</th>
+              <th>24h Low</th>
+              <th>24h Volume</th>
+            </tr>
+          </thead>
+          <tbody id="favorites-coin-table-body">
+            <!-- inserted by renderFavoritesTable() -->
           </tbody>
         </table>
       </section>
