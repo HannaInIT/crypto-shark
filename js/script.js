@@ -106,6 +106,131 @@ function renderTable(coins) {
   coinTableBody.innerHTML = coins.map(renderRow).join("");
 }
 
+const depthModal = document.getElementById("depthModal");
+const depthBody = document.getElementById("depthBody");
+const depthTitle = document.getElementById("depthTitle");
+const depthLimitSelect = document.getElementById("depthLimit");
+
+let currentDepthSymbol = null;
+
+async function fetchDepth(symbol, limit) {
+  const response = await fetch(
+    `https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${limit}`,
+  );
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  return response.json();
+}
+
+function renderDepthLoading() {
+  depthBody.innerHTML = `
+  <div class="depth-state">
+  <div class="spinner-text"></div>
+  Loading order book...
+  </div>
+  `;
+}
+
+function renderDepthError() {
+  depthBody.innerHTML = `
+  <p class="depth-state">Failed to load order book. Please try again.</p>
+  `;
+}
+
+function parseDepthSide(entries) {
+  return entries.map(([price, qty]) => ({
+    price: parseFloat(price),
+    qty: parseFloat(qty),
+  }));
+}
+
+function renderDepthList(entries, side) {
+  return entries
+    .map(
+      (entry) => `
+  <tr>
+    <td class="${side}-price">${entry.price.toLocaleString()}</td>
+    <td class="depth-qty">${entry.qty}</td>
+  </tr>
+  `,
+    )
+    .join("");
+}
+
+// open modal window
+let currentDepthData = null;
+
+async function openDepthModal(symbol) {
+  currentDepthSymbol = symbol;
+
+  depthTitle.textContent = `Order book - ${symbol}`;
+  depthModal.classList.add("active");
+  renderDepthLoading();
+
+  try {
+    const data = await fetchDepth(symbol, 100);
+    currentDepthData = {
+      bids: parseDepthSide(data.bids),
+      asks: parseDepthSide(data.asks),
+    };
+    renderVisibleDepth();
+  } catch (err) {
+    renderDepthError();
+    console.error(err);
+  }
+}
+
+function renderVisibleDepth() {
+  const limit = Number(depthLimitSelect.value);
+  const bids = currentDepthData.bids.slice(0, limit);
+  const asks = currentDepthData.asks.slice(0, limit);
+
+  depthBody.innerHTML = `
+  <div class="book-columns">
+    <table class="data-table depth-table">
+      <thead><tr><th>Bid price</th><th>Qty</th></tr></thead>
+      <tbody>${renderDepthList(bids, "bid")}</tbody>
+    </table>
+    <table class="data-table depth-table">
+      <thead><tr><th>Ask price</th><th>Qty</th></tr></thead>
+      <tbody>${renderDepthList(asks, "ask")}</tbody>
+    </table>
+  </div>
+  `;
+}
+
+depthLimitSelect.addEventListener("change", () => {
+  if (currentDepthData) {
+    renderVisibleDepth();
+  }
+});
+
+// close modal window
+function closeDepthModal() {
+  depthModal.classList.remove("active");
+  depthLimitSelect.value = "10";
+  currentDepthData = null;
+  currentDepthSymbol = null;
+}
+
+document.addEventListener("click", (e) => {
+  const openTrigger = e.target.closest('[data-action="open-depth"]');
+  if (openTrigger) {
+    openDepthModal(openTrigger.dataset.symbol);
+    return;
+  }
+
+  const closeTrigger = e.target.closest('[data-action="close-depth"]');
+  if (closeTrigger || e.target === depthModal) {
+    closeDepthModal();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && depthModal.classList.contains("active")) {
+    closeDepthModal();
+  }
+});
+
 // load coins
 async function loadCoins() {
   try {
@@ -207,24 +332,26 @@ function toggleFavorite(symbol) {
   saveFavorites();
 }
 
-coinTableBody.addEventListener("click", (e) => {
-  const btn = e.target.closest(".favorite-btn");
-  if (!btn) return;
+function handleRowClick(e, onFavoriteToggle) {
+  const favoriteBtn = e.target.closest(".favorite-btn");
+  if (favoriteBtn) {
+    const symbol = favoriteBtn.dataset.symbol;
+    toggleFavorite(symbol);
+    updateFavoriteButtonUI(symbol);
+    onFavoriteToggle?.();
+    return;
+  }
+  const row = e.target.closest("tr[data-symbol]");
+  if (row) {
+    openDepthModal(row.dataset.symbol);
+  }
+}
 
-  const symbol = btn.dataset.symbol;
-  toggleFavorite(symbol);
-  updateFavoriteButtonUI(symbol);
-});
+coinTableBody.addEventListener("click", (e) => handleRowClick(e));
 
-favoritesTableBody.addEventListener("click", (e) => {
-  const btn = e.target.closest(".favorite-btn");
-  if (!btn) return;
-
-  const symbol = btn.dataset.symbol;
-  toggleFavorite(symbol);
-  updateFavoriteButtonUI(symbol);
-  renderFavoritesTable();
-});
+favoritesTableBody.addEventListener("click", (e) =>
+  handleRowClick(e, renderFavoritesTable),
+);
 
 // favorites page
 function renderFavoritesTable() {

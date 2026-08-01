@@ -383,6 +383,7 @@ nav {
 .data-table tbody td {
   padding: 16px;
   border-bottom: 1px solid var(--light-grey);
+  cursor: pointer;
 }
 
 .data-table tbody tr:hover {
@@ -458,4 +459,130 @@ nav {
   color: var(--text-grey);
   font-size: 16px;
   font-weight: 500;
+}
+
+/* ============================================
+   ORDER BOOK MODAL
+   ============================================ */
+.open-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-main);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.open-btn:hover {
+  color: var(--accent-purple);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(53, 46, 91, 0.35);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal {
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: 2px 4px 30px rgba(70, 31, 91, 0.12);
+  width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--light-grey);
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--light-grey);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.modal-close:hover {
+  color: var(--accent-purple);
+}
+
+.modal-body {
+  padding: 16px 24px 24px;
+  overflow-y: auto;
+}
+
+.depth-table {
+  margin-top: 4px;
+}
+
+.depth-table th,
+.depth-table td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.depth-table th:first-child,
+.depth-table td:first-child {
+  text-align: left;
+}
+
+.bid-price {
+  color: var(--positive);
+}
+
+.ask-price {
+  color: var(--negative);
+}
+
+.book-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.depth-state {
+  text-align: center;
+  padding: 36px 0;
+  color: var(--text-grey);
+  font-size: 15px;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--light-grey);
+  border-top-color: var(--accent-purple);
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

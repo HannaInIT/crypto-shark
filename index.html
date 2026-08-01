@@ -139,6 +139,31 @@
         </table>
       </section>
     </main>
+
+    <!-- modal window for the coin  -->
+    <div id="depthModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="depthTitle">Order book</h2>
+          <select id="depthLimit" class="depth-limit-select">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <button
+            class="modal-close"
+            data-action="close-depth"
+            aria-label="Close order book"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="modal-body" id="depthBody">
+          <!-- inserted by renderDepthBody()  -->
+        </div>
+      </div>
+    </div>
     <script src="/js/script.js" defer></script>
   </body>
 </html>
