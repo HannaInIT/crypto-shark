@@ -25,6 +25,12 @@ const loadMoreTrigger = document.getElementById("loadMoreTrigger");
 const scrollSpinner = document.getElementById("scrollSpinner");
 const pageSize = 50;
 const scrollRenderDelay = 250;
+// Binance caps the number of streams per connection, and a very long stream
+// list makes the handshake URL unwieldy, so only the top rows stay live
+const maxLiveSymbols = 200;
+const tickerReconnectDelay = 3000;
+// matches the largest option in the depth-limit select
+const depthSnapshotLimit = 100;
 
 const debouncedFilterCoinsBySearchQuery = debounce(
   filterCoinsBySearchQuery,
@@ -33,7 +39,22 @@ const debouncedFilterCoinsBySearchQuery = debounce(
 
 // get the coin icon
 function getBaseAsset(symbol) {
-  return symbol.replace("USDT", "");
+  return symbol.endsWith("USDT") ? symbol.slice(0, -"USDT".length) : symbol;
+}
+
+// values come from third-party APIs, so never inject them raw into innerHTML
+function escapeHtml(value) {
+  return String(value).replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[char],
+  );
 }
 
 async function loadCoinManifest() {
@@ -53,18 +74,19 @@ async function loadCoinManifest() {
   }
 }
 
-function renderRow(coin, index) {
+function renderRow(coin) {
   const { symbol, lastPrice, quoteVolume, highPrice, lowPrice } = coin;
   const isFavorite = favorites.has(symbol);
   const base = getBaseAsset(symbol);
-  const name = coinNames[base] || base;
-  const iconUrl = `https://essamamdani.github.io/open-crypto-icons/icons/colored/${base.toLowerCase()}.svg`;
+  const name = escapeHtml(coinNames[base] || base);
+  const safeSymbol = escapeHtml(symbol);
+  const iconUrl = `https://essamamdani.github.io/open-crypto-icons/icons/colored/${encodeURIComponent(base.toLowerCase())}.svg`;
   const { change, isPositive } = formatChangeData(coin);
 
   return `
-  <tr data-symbol="${symbol}">
+  <tr data-symbol="${safeSymbol}">
   <td>
-  <button class="favorite-btn${isFavorite ? " active" : ""}" data-symbol="${symbol}" aria-label="${isFavorite ? "Remove" : "Add"} ${symbol} ${isFavorite ? "from" : "to"} favorites" aria-pressed="${isFavorite}">
+  <button class="favorite-btn${isFavorite ? " active" : ""}" data-symbol="${safeSymbol}" aria-label="${isFavorite ? "Remove" : "Add"} ${safeSymbol} ${isFavorite ? "from" : "to"} favorites" aria-pressed="${isFavorite}">
     <svg class="favorite-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
 	    <path d="M0 0h24v24H0z" fill="none" />
 	    <path fill="currentColor" d="${isFavorite ? starFilledPath : starOutlinePath}" />
@@ -75,14 +97,14 @@ function renderRow(coin, index) {
     <div class="coin-name-inner">
       <img src="${iconUrl}" alt="" width="27" height="27" onerror="this.style.display='none'"/>
       <span class="name">${name}</span>
-      <span class="symbol">${base}</span>
+      <span class="symbol">${escapeHtml(base)}</span>
     </div>
   </td>
   <td class="price">${formatMoney(lastPrice)}</td>
   <td class="change ${isPositive ? "positive" : "negative"}">
     <span class="change-inner">
       <span class="change-icon"> ${isPositive ? "▲" : "▼"}</span>
-      <span class="change-value">${Math.abs(change)}%</span>
+      <span class="change-value">${formatPercent(change)}</span>
     </span>
   </td>
   <td>${formatMoney(highPrice)}</td>
@@ -108,8 +130,7 @@ function updateSingleRow(row, coin) {
   changeCell.classList.toggle("negative", !isPositive);
   changeCell.querySelector(".change-icon").textContent =
     ` ${isPositive ? "▲" : "▼"}`;
-  changeCell.querySelector(".change-value").textContent =
-    `${Math.abs(change)}%`;
+  changeCell.querySelector(".change-value").textContent = formatPercent(change);
 
   const cells = row.querySelectorAll("td");
   cells[4].textContent = formatMoney(coin.highPrice);
@@ -121,6 +142,7 @@ function renderTable(coins) {
   currentDisplayCoins = coins;
   visibleCount = Math.min(pageSize, coins.length);
   renderVisibleRows();
+  syncTickerStream();
 }
 
 async function fetchDepth(symbol, limit) {
@@ -158,8 +180,8 @@ function renderDepthList(entries, side) {
     .map(
       (entry) => `
   <tr>
-    <td class="${side}-price">${entry.price.toLocaleString()}</td>
-    <td class="depth-qty">${entry.qty}</td>
+    <td class="${side}-price">${formatMoney(entry.price)}</td>
+    <td class="depth-qty">${formatQty(entry.qty)}</td>
   </tr>
   `,
     )
@@ -195,17 +217,18 @@ function loadMoreRows() {
     renderVisibleRows();
     scrollSpinner.hidden = true;
     isLoadingMore = false;
-    connectTickerStream(
-      currentDisplayCoins.slice(0, visibleCount).map((coin) => coin.symbol),
-    );
+    syncTickerStream();
   }, scrollRenderDelay);
 }
 
-const scrollObserver = new IntersectionObserver((entries) => {
-  if (entries[0].isIntersecting) {
-    loadMoreRows();
-  }
-});
+const scrollObserver = new IntersectionObserver(
+  (entries) => {
+    if (entries[0].isIntersecting) {
+      loadMoreRows();
+    }
+  },
+  { rootMargin: "300px" },
+);
 
 scrollObserver.observe(loadMoreTrigger);
 
@@ -217,11 +240,15 @@ async function openDepthModal(symbol) {
 
   depthTitle.textContent = `Order book - ${symbol}`;
   depthModal.classList.add("active");
+  document.body.classList.add("modal-open");
   renderDepthLoading();
   updateLiveIndicator();
 
   try {
-    const data = await fetchDepth(symbol, 100);
+    const data = await fetchDepth(symbol, depthSnapshotLimit);
+    // the modal may have been closed or switched to another coin while we waited
+    if (currentDepthSymbol !== symbol) return;
+
     currentDepthData = {
       bids: parseDepthSide(data.bids),
       asks: parseDepthSide(data.asks),
@@ -229,12 +256,15 @@ async function openDepthModal(symbol) {
     renderVisibleDepth();
     reconcileDepthStream();
   } catch (err) {
+    if (currentDepthSymbol !== symbol) return;
     renderDepthError();
-    console.error(err);
+    console.error("Failed to load order book:", err);
   }
 }
 
 function renderVisibleDepth() {
+  if (!currentDepthData) return;
+
   const limit = Number(depthLimitSelect.value);
   const bids = currentDepthData.bids.slice(0, limit);
   const asks = currentDepthData.asks.slice(0, limit);
@@ -265,6 +295,7 @@ depthLimitSelect.addEventListener("change", () => {
 function closeDepthModal() {
   disconnectDepthStream();
   depthModal.classList.remove("active");
+  document.body.classList.remove("modal-open");
   depthLimitSelect.value = "10";
   currentDepthData = null;
   currentDepthSymbol = null;
@@ -314,12 +345,9 @@ async function loadCoins() {
 
     renderTable(allCoins);
     table.hidden = false;
-    connectTickerStream(
-      currentDisplayCoins.slice(0, visibleCount).map((coin) => coin.symbol),
-    );
   } catch (err) {
     errorMessage.hidden = false;
-    console.log(err);
+    console.error("Failed to load coins:", err);
   } finally {
     loader.hidden = true;
   }
@@ -327,12 +355,30 @@ async function loadCoins() {
 
 function formatChangeData(coin) {
   const change = parseFloat(coin.priceChangePercent);
-  const isPositive = change >= 0;
+  const isPositive = !(change < 0);
   return { change, isPositive };
 }
 
+// keep enough precision for sub-cent coins, otherwise they all render as "$0"
 function formatMoney(value) {
-  return `$${parseFloat(value).toLocaleString()}`;
+  const amount = parseFloat(value);
+  if (!Number.isFinite(amount)) return "—";
+
+  const maximumFractionDigits = amount >= 1 ? 2 : amount >= 0.0001 ? 6 : 8;
+  return `$${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  })}`;
+}
+
+function formatPercent(change) {
+  if (!Number.isFinite(change)) return "—";
+  return `${Math.abs(change).toFixed(2)}%`;
+}
+
+function formatQty(qty) {
+  if (!Number.isFinite(qty)) return "—";
+  return qty.toLocaleString("en-US", { maximumFractionDigits: 8 });
 }
 
 // search coins
@@ -359,10 +405,12 @@ function filterCoinsBySearchQuery(query) {
     return;
   }
 
+  // match on the base asset, not the full pair: every symbol ends with "USDT",
+  // so searching "USDT" used to return the entire list
   const filtered = allCoins.filter((coin) => {
     const base = getBaseAsset(coin.symbol);
     const name = (coinNames[base] || "").toUpperCase();
-    return coin.symbol.includes(trimmed) || name.includes(trimmed);
+    return base.includes(trimmed) || name.includes(trimmed);
   });
 
   renderTable(filtered);
@@ -370,6 +418,7 @@ function filterCoinsBySearchQuery(query) {
 }
 
 searchInput.addEventListener("input", (e) => {
+  updateClearButton();
   debouncedFilterCoinsBySearchQuery(e.target.value);
 });
 
@@ -380,13 +429,23 @@ searchForm.addEventListener("submit", (e) => {
 
 // clear input button
 const clearBtn = document.querySelector(".clear-btn");
+
+// the button ships with the `hidden` attribute but nothing ever toggled it,
+// so it has to follow the input's content
+function updateClearButton() {
+  if (clearBtn) clearBtn.hidden = searchInput.value.length === 0;
+}
+
 if (clearBtn) {
   clearBtn.addEventListener("click", () => {
     searchInput.value = "";
+    updateClearButton();
     filterCoinsBySearchQuery("");
     searchInput.focus();
   });
 }
+
+updateClearButton();
 
 // add to favorites
 const favoritesCoinsKey = "favoritesCoins";
@@ -415,6 +474,8 @@ function toggleFavorite(symbol) {
     favorites.add(symbol);
   }
   saveFavorites();
+  // a newly favorited coin may not be among the rows we are subscribed to
+  syncTickerStream();
 }
 
 function handleRowClick(e, onFavoriteToggle) {
@@ -480,26 +541,66 @@ function updateFavoriteButtonUI(symbol) {
 
 // websocket
 let tickerSocket = null;
-let latestTickerData = null;
+let tickerReconnectTimeoutId = null;
+let subscribedStreamKey = "";
+const pendingTickerUpdates = new Map();
 let isTickerRenderPending = false;
 
+// subscribe to what is actually on screen: the rendered rows plus every
+// favorite, so the favorites page stays live even for coins further down the list
+function syncTickerStream() {
+  const symbols = [
+    ...new Set([
+      ...[...favorites].filter((symbol) => coinsBySymbol.has(symbol)),
+      ...currentDisplayCoins.slice(0, visibleCount).map((coin) => coin.symbol),
+    ]),
+  ].slice(0, maxLiveSymbols);
+
+  const streamKey = symbols.join(",");
+  if (streamKey === subscribedStreamKey) return;
+
+  subscribedStreamKey = streamKey;
+  connectTickerStream(symbols);
+}
+
 function connectTickerStream(symbols) {
-  if (tickerSocket) {
-    tickerSocket.close();
-    tickerSocket = null;
-  }
+  closeTickerStream();
+  if (symbols.length === 0) return;
+
   const streams = symbols.map((s) => `${s.toLowerCase()}@ticker`).join("/");
   tickerSocket = new WebSocket(
     `wss://stream.binance.com:9443/stream?streams=${streams}`,
   );
-  tickerSocket.onopen = () => console.log("[WS ticker] connected");
 
   tickerSocket.onmessage = (event) => {
-    const payload = JSON.parse(event.data);
-    latestTickerData = [payload.data];
+    const ticker = JSON.parse(event.data).data;
+    if (!ticker) return;
 
+    // buffer by symbol so ticks arriving within the same frame are not dropped
+    pendingTickerUpdates.set(ticker.s, ticker);
     scheduleTickerRender();
   };
+
+  tickerSocket.onerror = (err) => console.error("[WS ticker] error:", err);
+
+  tickerSocket.onclose = () => {
+    tickerReconnectTimeoutId = setTimeout(
+      () => connectTickerStream(symbols),
+      tickerReconnectDelay,
+    );
+  };
+}
+
+function closeTickerStream() {
+  clearTimeout(tickerReconnectTimeoutId);
+  if (!tickerSocket) return;
+
+  // drop the handlers first so an intentional close does not trigger a reconnect
+  tickerSocket.onmessage = null;
+  tickerSocket.onerror = null;
+  tickerSocket.onclose = null;
+  tickerSocket.close();
+  tickerSocket = null;
 }
 
 function scheduleTickerRender() {
@@ -507,31 +608,28 @@ function scheduleTickerRender() {
   isTickerRenderPending = true;
 
   requestAnimationFrame(() => {
-    applyTickerUpdate(latestTickerData);
     isTickerRenderPending = false;
+    const tickers = [...pendingTickerUpdates.values()];
+    pendingTickerUpdates.clear();
+    applyTickerUpdate(tickers);
   });
 }
 
-function applyTickerUpdate(tickets) {
-  console.log(
-    `[WS ticker] received ${tickets.length} tickers, coinsBySymbol size: ${coinsBySymbol.size}`,
-  );
-  tickets
-    .filter((ticker) => coinsBySymbol.has(ticker.s))
-    .map((ticker) => {
-      const coin = coinsBySymbol.get(ticker.s);
-      coin.lastPrice = ticker.c;
-      coin.priceChangePercent = ticker.P;
-      coin.highPrice = ticker.h;
-      coin.lowPrice = ticker.l;
-      coin.quoteVolume = ticker.q;
-      return coin;
-    });
+function applyTickerUpdate(tickers) {
+  tickers.forEach((ticker) => {
+    const coin = coinsBySymbol.get(ticker.s);
+    if (!coin) return;
 
-  renderVisibleRows();
-  if (!favoritesTable.hidden) {
-    renderFavoritesTable();
-  }
+    coin.lastPrice = ticker.c;
+    coin.priceChangePercent = ticker.P;
+    coin.highPrice = ticker.h;
+    coin.lowPrice = ticker.l;
+    coin.quoteVolume = ticker.q;
+
+    // patch the existing cells instead of rebuilding the table, which would
+    // discard hover/focus state and re-request every coin icon on each tick
+    updateRowValues(coin);
+  });
 }
 
 // live coin update in the modal window
@@ -578,7 +676,7 @@ function disconnectDepthStream() {
 function reconcileDepthStream() {
   const limit = Number(depthLimitSelect.value);
 
-  if (liveDepthLimits.has(limit)) {
+  if (liveDepthLimits.has(limit) && currentDepthSymbol) {
     connectDepthStream(currentDepthSymbol);
   } else {
     disconnectDepthStream();
