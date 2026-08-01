@@ -461,6 +461,12 @@ nav {
   font-weight: 500;
 }
 
+.load-more-trigger {
+  display: flex;
+  justify-content: center;
+  padding: 224px 0;
+}
+
 /* ============================================
    ORDER BOOK MODAL
    ============================================ */
@@ -571,7 +577,7 @@ nav {
   font-size: 15px;
 }
 
-.spinner {
+.scroll-spinner {
   width: 22px;
   height: 22px;
   border: 3px solid var(--light-grey);

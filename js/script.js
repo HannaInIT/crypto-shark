@@ -2,6 +2,10 @@ let coinNames = {};
 let allCoins = [];
 let favorites = loadFavorites();
 let isShowingAllCoins = true;
+let currentDisplayCoins = [];
+let visibleCount = 0;
+let isLoadingMore = false;
+let currentDepthSymbol = null;
 const coinTableBody = document.getElementById("coin-table-body");
 const searchHint = document.getElementById("searchHint");
 const favoritesTableBody = document.getElementById("favorites-coin-table-body");
@@ -13,6 +17,14 @@ const table = document.getElementById("coin-table");
 const errorMessage = document.getElementById("error-message");
 const searchInput = document.getElementById("coinSearch");
 const searchForm = document.getElementById("searchForm");
+const depthModal = document.getElementById("depthModal");
+const depthBody = document.getElementById("depthBody");
+const depthTitle = document.getElementById("depthTitle");
+const depthLimitSelect = document.getElementById("depthLimit");
+const loadMoreTrigger = document.getElementById("loadMoreTrigger");
+const scrollSpinner = document.getElementById("scrollSpinner");
+const pageSize = 50;
+const scrollRenderDelay = 250;
 
 const debouncedFilterCoinsBySearchQuery = debounce(
   filterCoinsBySearchQuery,
@@ -94,24 +106,10 @@ function renderRow(coin, index) {
 
 // render table
 function renderTable(coins) {
-  if (coins.length === 0) {
-    coinTableBody.innerHTML = `
-  <tr class="no-results-row">
-    <td colspan="7">No coins found.</td>
-  </tr>
-    `;
-    return;
-  }
-
-  coinTableBody.innerHTML = coins.map(renderRow).join("");
+  currentDisplayCoins = coins;
+  visibleCount = Math.min(pageSize, coins.length);
+  renderVisibleRows();
 }
-
-const depthModal = document.getElementById("depthModal");
-const depthBody = document.getElementById("depthBody");
-const depthTitle = document.getElementById("depthTitle");
-const depthLimitSelect = document.getElementById("depthLimit");
-
-let currentDepthSymbol = null;
 
 async function fetchDepth(symbol, limit) {
   const response = await fetch(
@@ -155,6 +153,46 @@ function renderDepthList(entries, side) {
     )
     .join("");
 }
+
+// infinite scroll
+function renderVisibleRows() {
+  if (currentDisplayCoins.length === 0) {
+    coinTableBody.innerHTML = `
+    <tr class="no-results-row">
+    <td colspan="7">No coins found.</td>
+    </tr>
+    `;
+    return;
+  }
+
+  const visibleCoins = currentDisplayCoins.slice(0, visibleCount);
+  coinTableBody.innerHTML = visibleCoins.map(renderRow).join("");
+}
+
+function loadMoreRows() {
+  if (isLoadingMore || visibleCount >= currentDisplayCoins.length) return;
+
+  isLoadingMore = true;
+  scrollSpinner.hidden = false;
+
+  setTimeout(() => {
+    visibleCount = Math.min(
+      visibleCount + pageSize,
+      currentDisplayCoins.length,
+    );
+    renderVisibleRows();
+    scrollSpinner.hidden = true;
+    isLoadingMore = false;
+  }, scrollRenderDelay);
+}
+
+const scrollObserver = new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting) {
+    loadMoreRows();
+  }
+});
+
+scrollObserver.observe(loadMoreTrigger);
 
 // open modal window
 let currentDepthData = null;
