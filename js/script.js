@@ -53,24 +53,13 @@ async function loadCoinManifest() {
   }
 }
 
-// render row
 function renderRow(coin, index) {
-  const {
-    symbol,
-    priceChangePercent,
-    lastPrice,
-    quoteVolume,
-    highPrice,
-    lowPrice,
-  } = coin;
-
+  const { symbol, lastPrice, quoteVolume, highPrice, lowPrice } = coin;
   const isFavorite = favorites.has(symbol);
   const base = getBaseAsset(symbol);
   const name = coinNames[base] || base;
   const iconUrl = `https://essamamdani.github.io/open-crypto-icons/icons/colored/${base.toLowerCase()}.svg`;
-
-  const change = parseFloat(priceChangePercent);
-  const isPositive = change >= 0;
+  const { change, isPositive } = formatChangeData(coin);
 
   return `
   <tr data-symbol="${symbol}">
@@ -82,7 +71,6 @@ function renderRow(coin, index) {
     </svg>
   </button>
   </td>
-
   <td class="coin-name">
     <div class="coin-name-inner">
       <img src="${iconUrl}" alt="" width="27" height="27" onerror="this.style.display='none'"/>
@@ -90,20 +78,44 @@ function renderRow(coin, index) {
       <span class="symbol">${base}</span>
     </div>
   </td>
-  <td class="price">$${parseFloat(lastPrice).toLocaleString()}</td>
+  <td class="price">${formatMoney(lastPrice)}</td>
   <td class="change ${isPositive ? "positive" : "negative"}">
     <span class="change-inner">
       <span class="change-icon"> ${isPositive ? "▲" : "▼"}</span>
       <span class="change-value">${Math.abs(change)}%</span>
     </span>
   </td>
-  <td>$${parseFloat(highPrice).toLocaleString()}</td>
-  <td>$${parseFloat(lowPrice).toLocaleString()}</td>
-  <td>$${parseFloat(quoteVolume).toLocaleString()}</td>
+  <td>${formatMoney(highPrice)}</td>
+  <td>${formatMoney(lowPrice)}</td>
+  <td>${formatMoney(quoteVolume)}</td>
   </tr>
   `;
 }
 
+function updateRowValues(coin) {
+  [...document.querySelectorAll(`tr[data-symbol="${coin.symbol}"]`)].map(
+    (row) => updateSingleRow(row, coin),
+  );
+}
+
+function updateSingleRow(row, coin) {
+  const { change, isPositive } = formatChangeData(coin);
+
+  row.querySelector(".price").textContent = formatMoney(coin.lastPrice);
+
+  const changeCell = row.querySelector(".change");
+  changeCell.classList.toggle("positive", isPositive);
+  changeCell.classList.toggle("negative", !isPositive);
+  changeCell.querySelector(".change-icon").textContent =
+    ` ${isPositive ? "▲" : "▼"}`;
+  changeCell.querySelector(".change-value").textContent =
+    `${Math.abs(change)}%`;
+
+  const cells = row.querySelectorAll("td");
+  cells[4].textContent = formatMoney(coin.highPrice);
+  cells[5].textContent = formatMoney(coin.lowPrice);
+  cells[6].textContent = formatMoney(coin.quoteVolume);
+}
 // render table
 function renderTable(coins) {
   currentDisplayCoins = coins;
@@ -122,8 +134,8 @@ async function fetchDepth(symbol, limit) {
 function renderDepthLoading() {
   depthBody.innerHTML = `
   <div class="depth-state">
-  <div class="spinner-text"></div>
-  Loading order book...
+    <div class="spinner-text"></div>
+    Loading order book...
   </div>
   `;
 }
@@ -183,6 +195,9 @@ function loadMoreRows() {
     renderVisibleRows();
     scrollSpinner.hidden = true;
     isLoadingMore = false;
+    connectTickerStream(
+      currentDisplayCoins.slice(0, visibleCount).map((coin) => coin.symbol),
+    );
   }, scrollRenderDelay);
 }
 
@@ -203,6 +218,7 @@ async function openDepthModal(symbol) {
   depthTitle.textContent = `Order book - ${symbol}`;
   depthModal.classList.add("active");
   renderDepthLoading();
+  updateLiveIndicator();
 
   try {
     const data = await fetchDepth(symbol, 100);
@@ -211,6 +227,7 @@ async function openDepthModal(symbol) {
       asks: parseDepthSide(data.asks),
     };
     renderVisibleDepth();
+    reconcileDepthStream();
   } catch (err) {
     renderDepthError();
     console.error(err);
@@ -239,11 +256,14 @@ function renderVisibleDepth() {
 depthLimitSelect.addEventListener("change", () => {
   if (currentDepthData) {
     renderVisibleDepth();
+    updateLiveIndicator();
+    reconcileDepthStream();
   }
 });
 
 // close modal window
 function closeDepthModal() {
+  disconnectDepthStream();
   depthModal.classList.remove("active");
   depthLimitSelect.value = "10";
   currentDepthData = null;
@@ -269,23 +289,50 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// load coins
+const liveDepthLimits = new Set([10, 20]);
+const depthLiveIndicator = document.getElementById("depthLiveIndicator");
+
+function updateLiveIndicator() {
+  const limit = Number(depthLimitSelect.value);
+  const isLive = liveDepthLimits.has(limit);
+
+  depthLiveIndicator.textContent = isLive ? "Live" : "Static snapshot";
+  depthLiveIndicator.classList.toggle("is-live", isLive);
+}
+
+// load coins + live data update (with websockets)
+let coinsBySymbol = new Map();
+
 async function loadCoins() {
   try {
     const response = await fetch("https://api.binance.com/api/v3/ticker/24hr");
-    if (!response.ok) throw new Error(`Request failed:  ${response.status}`);
+    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
 
     const data = await response.json();
-
     allCoins = data.filter((coin) => coin.symbol.endsWith("USDT"));
+    coinsBySymbol = new Map(allCoins.map((coin) => [coin.symbol, coin]));
+
     renderTable(allCoins);
     table.hidden = false;
+    connectTickerStream(
+      currentDisplayCoins.slice(0, visibleCount).map((coin) => coin.symbol),
+    );
   } catch (err) {
     errorMessage.hidden = false;
     console.log(err);
   } finally {
     loader.hidden = true;
   }
+}
+
+function formatChangeData(coin) {
+  const change = parseFloat(coin.priceChangePercent);
+  const isPositive = change >= 0;
+  return { change, isPositive };
+}
+
+function formatMoney(value) {
+  return `$${parseFloat(value).toLocaleString()}`;
 }
 
 // search coins
@@ -429,6 +476,113 @@ function updateFavoriteButtonUI(symbol) {
       starPath.setAttribute("d", isFavorite ? starFilledPath : starOutlinePath);
     },
   );
+}
+
+// websocket
+let tickerSocket = null;
+let latestTickerData = null;
+let isTickerRenderPending = false;
+
+function connectTickerStream(symbols) {
+  if (tickerSocket) {
+    tickerSocket.close();
+    tickerSocket = null;
+  }
+  const streams = symbols.map((s) => `${s.toLowerCase()}@ticker`).join("/");
+  tickerSocket = new WebSocket(
+    `wss://stream.binance.com:9443/stream?streams=${streams}`,
+  );
+  tickerSocket.onopen = () => console.log("[WS ticker] connected");
+
+  tickerSocket.onmessage = (event) => {
+    const payload = JSON.parse(event.data);
+    latestTickerData = [payload.data];
+
+    scheduleTickerRender();
+  };
+}
+
+function scheduleTickerRender() {
+  if (isTickerRenderPending) return;
+  isTickerRenderPending = true;
+
+  requestAnimationFrame(() => {
+    applyTickerUpdate(latestTickerData);
+    isTickerRenderPending = false;
+  });
+}
+
+function applyTickerUpdate(tickets) {
+  console.log(
+    `[WS ticker] received ${tickets.length} tickers, coinsBySymbol size: ${coinsBySymbol.size}`,
+  );
+  tickets
+    .filter((ticker) => coinsBySymbol.has(ticker.s))
+    .map((ticker) => {
+      const coin = coinsBySymbol.get(ticker.s);
+      coin.lastPrice = ticker.c;
+      coin.priceChangePercent = ticker.P;
+      coin.highPrice = ticker.h;
+      coin.lowPrice = ticker.l;
+      coin.quoteVolume = ticker.q;
+      return coin;
+    });
+
+  renderVisibleRows();
+  if (!favoritesTable.hidden) {
+    renderFavoritesTable();
+  }
+}
+
+// live coin update in the modal window
+let depthSocket = null;
+
+function connectDepthStream(symbol) {
+  disconnectDepthStream();
+
+  let latestDepthPayload = null;
+  let isDepthRenderPending = false;
+
+  depthSocket = new WebSocket(
+    `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth20@100ms`,
+  );
+
+  depthSocket.onmessage = (event) => {
+    latestDepthPayload = JSON.parse(event.data);
+    if (!isDepthRenderPending) {
+      isDepthRenderPending = true;
+      requestAnimationFrame(() => {
+        currentDepthData = {
+          bids: parseDepthSide(latestDepthPayload.bids),
+          asks: parseDepthSide(latestDepthPayload.asks),
+        };
+        renderVisibleDepth();
+        isDepthRenderPending = false;
+      });
+    }
+  };
+
+  depthSocket.onerror = (err) => {
+    console.error("[WS depth] error:", err);
+  };
+}
+
+function disconnectDepthStream() {
+  if (depthSocket) {
+    depthSocket.onmessage = null;
+    depthSocket.close();
+    depthSocket = null;
+  }
+}
+
+function reconcileDepthStream() {
+  const limit = Number(depthLimitSelect.value);
+
+  if (liveDepthLimits.has(limit)) {
+    connectDepthStream(currentDepthSymbol);
+  } else {
+    disconnectDepthStream();
+  }
 }
 
 //debounce

@@ -148,12 +148,15 @@
       <div class="modal">
         <div class="modal-header">
           <h2 id="depthTitle">Order book</h2>
-          <select id="depthLimit" class="depth-limit-select">
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
+          <div class="depth-controls">
+            <span id="depthLiveIndicator" class="live-indicator"></span>
+            <select id="depthLimit" class="depth-limit-select">
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
           <button
             class="modal-close"
             data-action="close-depth"
